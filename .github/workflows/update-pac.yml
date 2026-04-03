@@ -1,0 +1,33 @@
+name: Update PAC
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # каждые 5 минут
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install curl and jq
+        run: sudo apt-get update && sudo apt-get install -y curl jq
+
+      - name: Get servers
+        run: |
+          curl -s https://188.166.142.39/servers/list > servers.json
+
+      - name: Pick Netherlands server
+        run: |
+          HOST=$(jq -r '.[] | select(.name=="Netherlands") | .host' servers.json | head -n1)
+          PORT=$(jq -r '.[] | select(.name=="Netherlands") | .port' servers.json | head -n1)
+          echo "function FindProxyForURL(url, host) { return \"PROXY $HOST:$PORT; DIRECT\"; }" > proxy.pac
+
+      - name: Commit PAC
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add proxy.pac
+          git commit -m "Auto-update PAC"
+          git push
