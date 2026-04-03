@@ -5,7 +5,7 @@ permissions:
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # каждые 5 минут
+    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -14,27 +14,34 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install curl and jq
-        run: sudo apt-get update && sudo apt-get install -y curl jq
-
-      - name: Get servers
+      - name: Get servers and generate PAC
         run: |
-          curl -s https://188.166.142.39/servers/list > servers.json
+          # Скачиваем список (флаг -k, если сертификат не на IP)
+          curl -sk https://188.166.142.39/servers/list > servers.json
+          
+          # Извлекаем данные одним проходом
+          SERVER_DATA=$(jq -r '.[] | select(.name=="Netherlands") | "\(.host) \(.port)"' servers.json | head -n1)
+          
+          if [ -z "$SERVER_DATA" ]; then
+            echo "Server not found"
+            exit 1
+          fi
 
-      - name: Pick Netherlands server
-        run: |
-          HOST=$(jq -r '.[] | select(.name=="Netherlands") | .host' servers.json | head -n1)
-          PORT=$(jq -r '.[] | select(.name=="Netherlands") | .port' servers.json | head -n1)
-          TIMESTAMP=$(date +%s)
+          read -r HOST PORT <<< "$SERVER_DATA"
+          
           echo "function FindProxyForURL(url, host) { return \"PROXY $HOST:$PORT; DIRECT\"; }" > proxy.pac
-          echo "$TIMESTAMP" > proxy.version
+          date +%s > proxy.version
 
-      - name: Commit PAC
+      - name: Commit and Push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add proxy.pac proxy.version
-          git commit -m "Auto-update PAC"
-          git push
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+          # Коммитим только если есть изменения, чтобы не плодить пустые запуски
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update PAC [$(date -u +'%Y-%m-%d %H:%M:%S')]"
+            git push
+          fi
