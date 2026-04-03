@@ -1,6 +1,5 @@
 name: Update PAC
 
-# Разрешаем workflow пушить в репозиторий
 permissions:
   contents: write
 
@@ -12,33 +11,29 @@ on:
 jobs:
   update:
     runs-on: ubuntu-latest
-
     steps:
-      # 1️⃣ Склонировать репозиторий
       - uses: actions/checkout@v3
 
-      # 2️⃣ Установить curl и jq
       - name: Install curl and jq
         run: sudo apt-get update && sudo apt-get install -y curl jq
 
-      # 3️⃣ Получить список серверов
       - name: Get servers
         run: |
           curl -s https://188.166.142.39/servers/list > servers.json
 
-      # 4️⃣ Выбрать сервер Netherlands
       - name: Pick Netherlands server
         run: |
           HOST=$(jq -r '.[] | select(.name=="Netherlands") | .host' servers.json | head -n1)
           PORT=$(jq -r '.[] | select(.name=="Netherlands") | .port' servers.json | head -n1)
+          TIMESTAMP=$(date +%s)
           echo "function FindProxyForURL(url, host) { return \"PROXY $HOST:$PORT; DIRECT\"; }" > proxy.pac
+          echo "$TIMESTAMP" > proxy.version
 
-      # 5️⃣ Коммит и пуш PAC
       - name: Commit PAC
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add proxy.pac
+          git add proxy.pac proxy.version
           git commit -m "Auto-update PAC"
           git push
         env:
