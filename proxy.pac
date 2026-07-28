@@ -1,1 +1,1 @@
-function FindProxyForURL(url, host) { return "PROXY 213.111.146.36:35571; DIRECT"; }
+function FindProxyForURL(url, host) { return "PROXY 213.111.146.36:20017; DIRECT"; }
